@@ -1,0 +1,11 @@
+{
+  "name": "bark-notify-codex",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Install the Bark notification skill for Codex with local user preferences",
+  "type": "module",
+  "bin": { "bark-notify-codex": "scripts/install.mjs" },
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/BatuQI/bark-notify.git" },
+  "files": ["SKILL.md", "README.md", "INSTALL_PROMPT.md", "config.example.json", "agents/openai.yaml", "references/setup.md", "scripts/install.mjs", "scripts/install.py", "scripts/notify.py"]
+}
