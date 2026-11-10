@@ -1,4 +1,4 @@
 interface:
   display_name: "Bark 任务完成通知"
-  short_description: "完成任务后推送设备名、工作区、用户原文与完整最终回复，保留原始换行"
-  default_prompt: "使用 $bark-notify，在当前任务完成后发送一条包含用户原文和完整最终回复的普通正文通知。"
+  short_description: "按用户选择的范围和本地配置发送任务完成通知，保留原始换行与个人设置"
+  default_prompt: "使用 $bark-notify，在当前任务完成后按本机配置发送一条通知，沿用我的内容选项和通知规则。"
