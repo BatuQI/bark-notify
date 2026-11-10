@@ -2,7 +2,7 @@
   "server": "https://api.day.app",
   "device_key": "",
   "group": "example",
-  "ttl": 600,
+  "ttl": 86400,
   "content_format": "body",
   "include_reply": true,
   "readable_body": true
