@@ -6,6 +6,8 @@
 
 # Personal distribution packages may contain credentials
 *.zip
+*.tgz
+node_modules/
 
 # Generated files
 __pycache__/
