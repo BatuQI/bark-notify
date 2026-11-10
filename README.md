@@ -4,7 +4,7 @@ Codex 任务完成后发送一条 Bark 通知：设备名称为标题、工作�
 
 ## 在每台电脑上安装
 
-需要 Git 和 Python 3.9+。在各台电脑登录具有此私有仓库访问权限的 GitHub 账号。
+需要 Git 和 Python 3.9+。这是公开仓库，下载、克隆和拉取更新无需登录 GitHub；提交并推送修改仍需仓库写入权限。
 
 仓库地址：https://github.com/BatuQI/bark-notify
 
