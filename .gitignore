@@ -1,0 +1,13 @@
+# Per-computer credentials and settings
+/config.json
+/config.local.json
+.env
+.env.*
+
+# Personal distribution packages may contain credentials
+*.zip
+
+# Generated files
+__pycache__/
+*.py[cod]
+*.bark-backup-*
