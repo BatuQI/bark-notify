@@ -1,32 +1,36 @@
 # 安装与配置
 
-依赖 Python 3.9+，无需第三方包，支持 Windows、macOS、Linux。Git 仓库仅提供不含 key 的 `config.example.json`；首次克隆时复制为 `config.json`，填写本机使用的接收端 key，或用 `BARK_DEVICE_KEY` 环境变量覆盖。个人安装包可包含用户提供的 `config.json`，供自己的电脑间复制。设备名称在发送时读取；不要将含 key 的配置或个人 ZIP 提交到 Git。
+通知脚本依赖 Python 3.9+，无需第三方包，支持 Windows、macOS、Linux。Git 仓库与通用安装包只提供不含 key 的 `config.example.json`；用户配置保存在本地 `config.json`，也可用 `BARK_DEVICE_KEY` 环境变量覆盖 key。设备名称在发送时读取；不要将含 key 的配置或个人 ZIP 提交到 Git。
 
 通过 Git 安装和同步时，参阅 [README.md](../README.md)，优先将仓库直接克隆到本机 Skill 安装目录。每台电脑的 `config.json` 被 `.gitignore` 忽略，拉取只更新已提交的代码和说明。
 
-## 安装并设为默认
+## 首次配置与通知规则
 
-解压后，终端进入 `bark-notify` 文件夹。Windows：
+推荐在终端运行 `npx --yes github:BatuQI/bark-notify`；需要 Node.js 18+、Git、Python 3.9+。安装提示词见 [INSTALL_PROMPT.md](../INSTALL_PROMPT.md)。
 
-```powershell
-python .\scripts\install.py --enable-default
-```
+只有没有 `config.json` 的首次安装才进入向导，提示服务地址、key、分组、保留时间、内容格式、是否附上任务回复、是否清理显示，以及通知范围。推荐保留一天（86400 秒），普通正文，包含完整回复并清理显示；用户可以修改。通知范围可选仅明确调用、所有完成任务或自定义条件。默认仅明确调用，不自动替用户启用全局通知。
 
-若只有 Python Launcher，将 `python` 换成 `py -3`。macOS / Linux：
+Codex 的非交互工具应先收集用户选择，写入系统临时目录的 JSON，再传 `--config-file <文件>`；用户选择所有完成任务才加 `--enable-default`，自定义条件使用 `--rule-file <UTF-8文件>`，仅明确调用不加规则参数。安装后删除临时配置与规则文件。不要将 key 放在 shell 参数中。
 
-```sh
-python3 ./scripts/install.py --enable-default
-```
+已有本地配置时，不论重复安装还是手动更新，都直接沿用且不重问。已有全局 Bark 规则（包括用户编辑过的内容）原样保留；安装器不再重写已有标记块。用户以后明确要求改配置或触发范围时，可编辑本机 `config.json` 或全局规则。
 
-默认复制至 `$CODEX_HOME/skills/bark-notify`；未设置时为 `~/.codex/skills/bark-notify`。`--skill-dir` 可指定完整目标目录，如 `~/.agents/skills/bark-notify`。不覆盖已有目标；已有安装要重新启用默认规则，请在已安装目录运行安装脚本。
+首次选择全局通知时，会加入带 `bark-notify:begin/end` 标记的规则，并写入本机安装路径。优先使用非空的 `AGENTS.override.md`，否则使用 `AGENTS.md`；保留无关指令，写入前备份。规则按用户选择的内容选项与范围发送，不把普通正文、完整回复或所有任务强加给其他使用者。
 
-`--enable-default` 会向全局指令加入带 `bark-notify:begin/end` 标记的规则，并写入本机安装路径，即使 Skill 不在发现列表中，也能直接读取。优先更新已存在且非空的 `AGENTS.override.md`，否则更新 `AGENTS.md`。保留原有指令，修改前自动保存 `.bark-backup-时间戳` 备份，重复启用不会重复追加。不加该参数则只安装。
+## 不使用 npx 的安装方式
 
-安装后重启 Codex 或新建聊天，让 Skill 和全局要求加载。可要求 Codex“完成这个任务后，按全局要求发送 Bark 通知”验证。
+直接将仓库克隆到 `$CODEX_HOME/skills/bark-notify`（默认 `~/.codex/skills/bark-notify`），进入目录运行 `python -X utf8 scripts/install.py`。macOS/Linux 通常用 `python3`，Windows 也可用 `py -3`。首次交互配置流程相同。
+
+ZIP 用户解压后运行同一 Python 命令，会复制到目标 Skill 目录，跳过来源机器的配置、Git 元数据和缓存。`--skill-dir` 可指定完整目标目录。不覆盖已有目标；更新旧 ZIP 安装时先备份到 skills 目录之外，替换代码后迁移原本的 `config.json`，保留本机全局规则。已有配置不要重新生成。
+
+## 手动更新
+
+用户需要更新时运行 `npx --yes github:BatuQI/bark-notify --update`，或在已安装的 Git 工作副本中运行 `git pull --ff-only`。只快进更新代码，保留 `config.json` 和全局自定义规则；不再次询问配置，不改变已有保留时间，不重新调用 `--enable-default`，不建立定时任务或后台更新。代码有本地改动、冲突或分叉时交由用户处理，不强制覆盖。
+
+安装或更新后重启 Codex 或新建聊天加载。是否发送本次安装任务完成通知也遵循用户已选择并授权的规则，不额外发送测试通知。
 
 这是由 Codex 遵循指令调用的 Skill，不是后台监控或进程退出钩子。强制退出、任务取消或网络不可用不会补发。若项目明确覆盖全局要求，以当前有效指令为准。
 
-默认要求也适用于只读任务，以及由 `create_thread` 创建的独立聊天；独立聊天的委派启动标记不表示会话内子代理。只有 `collaboration.spawn_agent` 等启动的会话内子代理不单独发送。通知 JSON 使用系统临时目录，不修改只读任务的项目文件。
+用户选择所有完成任务时，也适用于只读任务和 `create_thread` 创建的独立聊天；自定义范围则以用户条件为准。只有 `collaboration.spawn_agent` 等启动的会话内子代理不单独发送。通知 JSON 使用系统临时目录，不修改只读任务的项目文件。
 
 ## 通知格式与配置
 
@@ -36,7 +40,7 @@ python3 ./scripts/install.py --enable-default
 | `subtitle` | 当前任务工作区根目录名，例如 `PersonalWork` |
 | `body` | 一条普通正文通知，包含“你的请求”和“任务回复”两段 |
 | `group` | `example`，与测试命令一致 |
-| `ttl` | `600`，归档消息保留 600 秒，不是网络超时 |
+| `ttl` | 首次推荐 `86400` 秒，即一天；已有配置按原值保留，不是网络超时 |
 
 在安装目录的 `config.json` 修改 `server`、`device_key`、`group`、`ttl`、`content_format`、`include_reply`、`readable_body`。`server` 是不含 key 的 HTTPS 服务地址，默认 `https://api.day.app`。也可用环境变量 `BARK_SERVER`、`BARK_DEVICE_KEY` 覆盖。`BARK_DEVICE_NAME` 用于指定设备名称，适合容器或远程环境。
 
