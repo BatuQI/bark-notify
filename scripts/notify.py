@@ -68,7 +68,7 @@ def load_config(path):
             or parsed.password or parsed.query or parsed.fragment):
         raise NotificationError("Bark server must be an HTTPS base URL without credentials or query.")
     group = config.get("group", "example")
-    ttl = config.get("ttl", 600)
+    ttl = config.get("ttl", 86400)
     content_format = config.get("content_format", "body")
     include_reply = config.get("include_reply", False)
     readable_body = config.get("readable_body", False)
