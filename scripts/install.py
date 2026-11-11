@@ -29,13 +29,14 @@ def enable_default(codex_dir, skill_dir, custom_rule=None):
     newline = "\r\n" if "\r\n" in old else "\n"
     rule = "\n".join([
         START,
-        "## Bark 任务完成通知（用户配置）",
-        custom_rule or "- 所有正常完成的用户任务（包括只读任务和独立聊天）发送完成通知。",
-        "- 在上述用户选择的范围内，任务开始时读取并遵循 `$bark-notify`，保存本次用户原文；完成及验证后、最终答复前只发送一次。",
+        "## Bark 任务结束通知（用户配置）",
+        custom_rule or "- 每个用户任务结束时发送一次通知，包括成功、失败、取消或被拦截的结果；独立聊天和只读任务也包含在内。",
+        "- 在上述用户选择的范围内，任务开始时读取并遵循 `$bark-notify`，保存本次用户原文；任务结束后、最终答复前只发送一次，最终回复如实说明实际结果。成功任务先完成必要验证。",
         "- 本人授权按本机 config.json 的内容选项发送用户请求及所选的任务回复到本人配置的 Bark 接收端；后续更新不改变这项选择。",
         "- 通知格式、回复选项和显示清理由本地配置决定。原始换行保留，不额外增加末尾换行；聊天中仍输出原始完整回复。",
         "- 临时 JSON 放在系统临时目录；会话内子代理不单独发送，由主代理汇总一次。",
-        "- 等待用户、审批、任务失败或取消时不发送。用户要求本次不通知时跳过。",
+        "- 等待输入、等待审批、仍在执行或修复中且任务尚未结束时不发送；审批或执行被拒绝且任务就此结束时，按上述用户范围发送被拦截结果。同一次结束只尝试一次，不因等待、刷新或继续输出重复发送。用户要求本次不通知时跳过。",
+        "- 取消或拦截后仍能执行工具时，停止原任务操作，仅发送结果通知，不绕过限制；强制停止或进程退出导致无法执行工具时不能保证通知，不建立后台补发。",
         "- 通知失败或结果未知时不自动重试，简短说明，不影响主任务结果。",
         "- 若技能列表未显示该 Skill，直接读取以下本机安装文件并遵循其中步骤：",
         "  `%s`" % (skill_dir / "SKILL.md").as_posix(),
@@ -92,7 +93,7 @@ def prompt_settings(defaults, ask_scope=True):
     print("标题自动使用当前设备名，副标题使用当前工作区名。可用 BARK_DEVICE_NAME 自定义设备名。")
     mode, custom_rule = "manual", None
     if ask_scope:
-        mode = ask("通知规则：manual=仅明确调用，all=所有完成任务，custom=自定义", "manual")
+        mode = ask("通知规则：manual=仅明确调用，all=每个任务结束（成功/失败/取消/被拦截），custom=自定义", "manual")
         if mode not in ("manual", "all", "custom"):
             raise ValueError("Choose manual, all or custom; no configuration saved.")
         if mode == "custom":
