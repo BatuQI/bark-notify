@@ -1,6 +1,6 @@
 {
   "name": "bark-notify-codex",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Install the Bark notification skill for Codex with local user preferences",
   "type": "module",
