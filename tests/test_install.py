@@ -72,7 +72,7 @@ class InstallTests(unittest.TestCase):
         after = override.read_bytes()
         self.assertTrue(after.startswith(original))
         self.assertIn("只有代码修改任务完成后通知。".encode(), after)
-        self.assertNotIn("所有正常完成的用户任务".encode(), after)
+        self.assertNotIn("每个用户任务结束时发送一次通知".encode(), after)
         self.assertFalse((self.home / "AGENTS.md").exists())
 
     def test_first_interactive_configuration_accepts_custom_values(self):
