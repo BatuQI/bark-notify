@@ -35,9 +35,9 @@ def enable_default(codex_dir, skill_dir, custom_rule=None):
         "- 本人授权按本机 config.json 的内容选项发送用户请求及所选的任务回复到本人配置的 Bark 接收端；后续更新不改变这项选择。",
         "- 通知格式、回复选项和显示清理由本地配置决定。原始换行保留，不额外增加末尾换行；聊天中仍输出原始完整回复。",
         "- 临时 JSON 放在系统临时目录；会话内子代理不单独发送，由主代理汇总一次。",
-        "- 等待输入、等待审批、仍在执行或修复中且任务尚未结束时不发送；审批或执行被拒绝且任务就此结束时，按上述用户范围发送被拦截结果。同一次结束只尝试一次，不因等待、刷新或继续输出重复发送。用户要求本次不通知时跳过。",
+        "- 等待输入、等待审批、仍在执行或修复中且任务尚未结束时不发送；审批或执行被拒绝且任务就此结束时，按上述用户范围发送被拦截结果。同一次结束只调用一次通知脚本，不因等待、刷新或继续输出重复调用。用户要求本次不通知时跳过。",
         "- 取消或拦截后仍能执行工具时，停止原任务操作，仅发送结果通知，不绕过限制；强制停止或进程退出导致无法执行工具时不能保证通知，不建立后台补发。",
-        "- 通知失败或结果未知时不自动重试，简短说明，不影响主任务结果。",
+        "- 启用 long_reply_fallback 时，过长通知仅将任务回复替换为实际结果对应的短状态；成功显示“已完成”，保留完整输入及聊天回复。仅明确 HTTP 413 可由脚本降级再试一次；其他失败或结果未知不重试，简短说明，不影响主任务结果。",
         "- 若技能列表未显示该 Skill，直接读取以下本机安装文件并遵循其中步骤：",
         "  `%s`" % (skill_dir / "SKILL.md").as_posix(),
         END,
@@ -68,6 +68,8 @@ def validate_initial_config(config):
         raise ValueError("Choose body or markdown for content_format.")
     if any(type(config.get(name)) is not bool for name in ("include_reply", "readable_body")):
         raise ValueError("include_reply and readable_body must be true or false.")
+    if type(config.get("long_reply_fallback", False)) is not bool:
+        raise ValueError("long_reply_fallback must be true or false.")
 
 
 def prompt_settings(defaults, ask_scope=True):
@@ -90,6 +92,10 @@ def prompt_settings(defaults, ask_scope=True):
     config["content_format"] = ask("正文格式 body/markdown", defaults["content_format"])
     config["include_reply"] = yes("是否附上完整任务回复", defaults["include_reply"])
     config["readable_body"] = yes("是否清理本地链接和显示标记", defaults["readable_body"])
+    if config["include_reply"]:
+        config["long_reply_fallback"] = yes(
+            "回复过长时是否改为简短结果状态（成功显示已完成）",
+            defaults.get("long_reply_fallback", False))
     print("标题自动使用当前设备名，副标题使用当前工作区名。可用 BARK_DEVICE_NAME 自定义设备名。")
     mode, custom_rule = "manual", None
     if ask_scope:

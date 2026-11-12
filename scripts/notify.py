@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send one Bark request with device title, workspace subtitle and literal UTF-8 content."""
+"""Send a Bark notification, optionally shortening an oversized final reply."""
 
 import argparse
 import hashlib
@@ -16,9 +16,18 @@ import urllib.parse
 import urllib.request
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
+# Conservative preflight budget, not a claim about every Bark server's limit.
+LONG_REPLY_PAYLOAD_BYTES = 3500
+OUTCOME_TEXT = {"success": "已完成", "failure": "任务失败",
+                "cancelled": "已取消", "blocked": "任务被拦截",
+                "unknown": "任务已结束"}
 
 
 class NotificationError(Exception):
+    pass
+
+
+class PayloadTooLarge(NotificationError):
     pass
 
 
@@ -72,6 +81,7 @@ def load_config(path):
     content_format = config.get("content_format", "body")
     include_reply = config.get("include_reply", False)
     readable_body = config.get("readable_body", False)
+    long_reply_fallback = config.get("long_reply_fallback", False)
     if not isinstance(group, str) or type(ttl) is not int or ttl < 0:
         raise NotificationError("group must be text; ttl must be a nonnegative integer.")
     if content_format not in ("body", "markdown"):
@@ -80,9 +90,12 @@ def load_config(path):
         raise NotificationError("include_reply must be a boolean.")
     if type(readable_body) is not bool:
         raise NotificationError("readable_body must be a boolean.")
+    if type(long_reply_fallback) is not bool:
+        raise NotificationError("long_reply_fallback must be a boolean.")
     return {"server": server.rstrip("/"), "device_key": key.strip(),
             "group": group, "ttl": ttl, "content_format": content_format,
-            "include_reply": include_reply, "readable_body": readable_body}
+            "include_reply": include_reply, "readable_body": readable_body,
+            "long_reply_fallback": long_reply_fallback}
 
 
 def read_messages(path):
@@ -97,7 +110,10 @@ def read_messages(path):
     reply = document.get("reply")
     if reply is not None and not isinstance(reply, str):
         raise NotificationError("reply must be a string when provided.")
-    return "\n\n".join(messages), reply
+    outcome = document.get("outcome", "unknown")
+    if not isinstance(outcome, str) or outcome not in OUTCOME_TEXT:
+        raise NotificationError("outcome must be success, failure, cancelled, blocked or unknown.")
+    return "\n\n".join(messages), reply, outcome
 
 
 def notification_text(text, plain_markup=False):
@@ -182,10 +198,14 @@ def make_payload(config, body, workspace):
     }
 
 
+def encode_payload(payload):
+    return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+
 def send(config, payload):
     request = urllib.request.Request(
         config["server"] + "/push",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        data=encode_payload(payload),
         headers={"Content-Type": "application/json; charset=utf-8"},
         method="POST",
     )
@@ -195,6 +215,8 @@ def send(config, payload):
             status = response.status
             data = response.read()
     except urllib.error.HTTPError as exc:
+        if exc.code == 413:
+            raise PayloadTooLarge("Bark returned HTTP 413; no further automatic retry.") from exc
         raise NotificationError("Bark returned HTTP %s; no automatic retry." % exc.code) from exc
     except (urllib.error.URLError, OSError) as exc:
         raise NotificationError("Network failure; delivery is unknown. No automatic retry.") from exc
@@ -222,23 +244,52 @@ def main(argv=None):
     try:
         config = load_config(args.config)
         if args.messages_file is not None:
-            request_text, reply = read_messages(args.messages_file)
+            request_text, reply, outcome = read_messages(args.messages_file)
         else:
             try:
                 request_text = args.body_file.read_bytes().decode("utf-8-sig")
             except (OSError, UnicodeError) as exc:
                 raise NotificationError("Cannot read the UTF-8 task body file.") from exc
             reply = None
+            outcome = "unknown"
         displayed_request = notification_text(request_text) if config["readable_body"] else request_text
         displayed_reply = (notification_text(reply, plain_markup=config["content_format"] == "body")
                            if config["readable_body"] and isinstance(reply, str) else reply)
         body = compose_body(displayed_request, displayed_reply, config["include_reply"])
         payload = make_payload(config, body, args.workspace)
+        short_reply = OUTCOME_TEXT[outcome]
+        can_shorten = (config["long_reply_fallback"] and config["include_reply"]
+                       and displayed_reply != short_reply)
+        fallback_reason = None
+
+        def shortened_payload():
+            return dict(payload, **{config["content_format"]:
+                        compose_body(displayed_request, short_reply, True)})
+
+        if can_shorten and len(encode_payload(payload)) > LONG_REPLY_PAYLOAD_BYTES:
+            payload = shortened_payload()
+            displayed_reply = short_reply
+            fallback_reason = "size"
         if args.dry_run:
             preview = dict(payload, device_key="***")
-            print(json.dumps({"dry_run": True, "url": config["server"] + "/push", "payload": preview}, ensure_ascii=True))
+            print(json.dumps({"dry_run": True, "url": config["server"] + "/push",
+                              "payload": preview, "reply_shortened": fallback_reason is not None,
+                              "fallback_reason": fallback_reason}, ensure_ascii=True))
         else:
-            receipt = send(config, payload)
+            attempts = 1
+            try:
+                receipt = send(config, payload)
+            except PayloadTooLarge:
+                # A definite size rejection is the only permitted second attempt.
+                if not can_shorten or fallback_reason is not None:
+                    raise
+                payload = shortened_payload()
+                displayed_reply = short_reply
+                fallback_reason = "http_413"
+                attempts = 2
+                receipt = send(config, payload)
+            receipt.update(attempts=attempts, reply_shortened=fallback_reason is not None,
+                           fallback_reason=fallback_reason)
             receipt["request_sha256"] = hashlib.sha256(request_text.encode("utf-8")).hexdigest()
             receipt["display_request_sha256"] = hashlib.sha256(displayed_request.encode("utf-8")).hexdigest()
             if config["include_reply"]:

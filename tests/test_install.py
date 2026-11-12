@@ -39,6 +39,7 @@ class InstallTests(unittest.TestCase):
         config = json.loads((self.target / "config.json").read_text(encoding="utf-8"))
         self.assertEqual(config["ttl"], 86400)
         self.assertEqual(config["device_key"], "fake-test-only")
+        self.assertFalse(config["long_reply_fallback"])
         self.assertFalse((self.home / "AGENTS.md").exists())
         self.assertFalse((self.target / ".git").exists())
 
@@ -92,6 +93,19 @@ class InstallTests(unittest.TestCase):
         self.assertEqual(self.run_install("--config-file", str(self.input), "--enable-default"), 1)
         self.assertFalse((self.target / "config.json").exists())
         self.assertFalse((self.home / "AGENTS.md").exists())
+
+    def test_interactive_long_reply_fallback_is_explicitly_opted_in(self):
+        answers = iter(["https://push.example.test", "test", "86400", "body",
+                        "y", "y", "y", "manual"])
+        with patch.object(install.sys.stdin, "isatty", return_value=True), patch("builtins.input", side_effect=lambda _: next(answers)), patch.object(install.getpass, "getpass", return_value="fake-test-only"):
+            self.assertEqual(self.run_install(), 0)
+        config = json.loads((self.target / "config.json").read_text(encoding="utf-8"))
+        self.assertTrue(config["long_reply_fallback"])
+
+    def test_invalid_fallback_setting_is_not_saved(self):
+        self.input.write_text('{"device_key":"fake-test-only","long_reply_fallback":"yes"}', encoding="utf-8")
+        self.assertEqual(self.run_install("--config-file", str(self.input)), 1)
+        self.assertFalse((self.target / "config.json").exists())
 
 
 if __name__ == "__main__":
